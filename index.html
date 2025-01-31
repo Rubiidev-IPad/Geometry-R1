@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Geometry Dash Remake</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            background: black;
+            position: relative;
+        }
+        
+        .cube {
+            width: 40px;
+            height: 40px;
+            background: cyan;
+            position: absolute;
+            transition: transform 0.2s;
+            left: 100px;
+        }
+        
+        .block {
+            background: lime;
+            position: absolute;
+        }
+        
+        .spike {
+            width: 40px;
+            height: 40px;
+            background: red;
+            position: absolute;
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        }
+        
+        #game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="cube" class="cube"></div>
+        <div id="game-over">Game Over<br>Tap to restart</div>
+    </div>
+
+<script>
+class Game {
+    constructor() {
+        this.container = document.getElementById('game-container');
+        this.cube = document.getElementById('cube');
+        this.gameOverScreen = document.getElementById('game-over');
+        this.isJumping = false;
+        this.velocity = 0;
+        this.gravity = 0.8;
+        this.jumpForce = -16;
+        this.scrollSpeed = 5;
+        this.cameraX = 0;
+        this.gameOver = false;
+        this.blocks = [];
+        this.spikes = [];
+        
+        this.init();
+        this.setupEventListeners();
+        this.gameLoop();
+    }
+
+    init() {
+        // Create initial platform
+        this.createBlock(0, window.innerHeight - 40, window.innerWidth, 40);
+        // Create spike on platform
+        this.createSpike(500, window.innerHeight - 80); // Adjusted Y position
+    }
+
+    setupEventListeners() {
+        const handleStart = () => {
+            if (this.gameOver) {
+                this.reset();
+                return;
+            }
+            this.jump();
+        };
+
+        this.container.addEventListener('mousedown', handleStart);
+        this.container.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleStart();
+        });
+    }
+
+    jump() {
+        if (!this.isJumping) {
+            this.velocity = this.jumpForce;
+            this.isJumping = true;
+            this.rotateCube(90);
+        }
+    }
+
+    rotateCube(degrees) {
+        this.cube.style.transform = `rotate(${degrees}deg)`;
+    }
+
+    createBlock(x, y, width, height) {
+        const block = document.createElement('div');
+        block.className = 'block';
+        block.style.width = width + 'px';
+        block.style.height = height + 'px';
+        block.style.left = x + 'px';
+        block.style.top = y + 'px';
+        this.container.appendChild(block);
+        this.blocks.push(block);
+    }
+
+    createSpike(x, y) {
+        const spike = document.createElement('div');
+        spike.className = 'spike';
+        spike.style.left = x + 'px';
+        spike.style.top = y + 'px';
+        this.container.appendChild(spike);
+        this.spikes.push(spike);
+    }
+
+    checkCollisions() {
+        const cubeRect = this.cube.getBoundingClientRect();
+        
+        // Block collisions
+        this.isJumping = true;
+        this.blocks.forEach(block => {
+            const blockRect = block.getBoundingClientRect();
+            if (this.rectIntersect(cubeRect, blockRect)) {
+                if (cubeRect.bottom > blockRect.top && this.velocity >= 0) {
+                    this.cube.style.top = (blockRect.top - cubeRect.height) + 'px';
+                    this.velocity = 0;
+                    this.isJumping = false;
+                }
+            }
+        });
+
+        // Spike collisions
+        this.spikes.forEach(spike => {
+            if (this.rectIntersect(cubeRect, spike.getBoundingClientRect())) {
+                this.gameOver = true;
+                this.gameOverScreen.style.display = 'block';
+            }
+        });
+
+        // Floor collision
+        if (cubeRect.bottom >= window.innerHeight) {
+            this.cube.style.top = (window.innerHeight - 40) + 'px';
+            this.velocity = 0;
+            this.isJumping = false;
+        }
+    }
+
+    rectIntersect(rect1, rect2) {
+        return !(rect1.right < rect2.left || 
+                rect1.left > rect2.right || 
+                rect1.bottom < rect2.top || 
+                rect1.top > rect2.bottom);
+    }
+
+    updateWorld() {
+        // Move camera and world elements
+        this.cameraX += this.scrollSpeed;
+        
+        this.blocks.forEach(block => {
+            block.style.transform = `translateX(${-this.cameraX}px)`;
+        });
+        
+        this.spikes.forEach(spike => {
+            spike.style.transform = `translateX(${-this.cameraX}px)`;
+        });
+    }
+
+    updateCube() {
+        this.velocity += this.gravity;
+        const currentTop = parseFloat(this.cube.style.top || window.innerHeight/2) + this.velocity;
+        this.cube.style.top = currentTop + 'px';
+    }
+
+    reset() {
+        this.cameraX = 0;
+        this.gameOver = false;
+        this.velocity = 0;
+        this.isJumping = false;
+        this.gameOverScreen.style.display = 'none';
+        this.cube.style.top = (window.innerHeight/2 - 20) + 'px';
+        this.cube.style.transform = 'rotate(0deg)';
+        this.blocks.forEach(b => b.remove());
+        this.spikes.forEach(s => s.remove());
+        this.blocks = [];
+        this.spikes = [];
+        this.init();
+    }
+
+    gameLoop() {
+        if (!this.gameOver) {
+            this.updateCube();
+            this.updateWorld();
+            this.checkCollisions();
+        }
+        requestAnimationFrame(() => this.gameLoop());
+    }
+}
+
+// Start game
+new Game();
+</script>
+</body>
+</html>
